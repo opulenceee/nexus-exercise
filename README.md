@@ -9,7 +9,7 @@ A backend system for a digital marketplace that sells coupon-based products thro
 
 ```bash
 # 1. Clone and enter the project
-git clone https://github.com/opulenceee/nexus-exercise.git
+git clone https://github.com/benbichler/nexus-exercise.git
 cd nexus-exercise
 
 # 2. Create your local env file (never committed — .env is gitignored)
