@@ -5,7 +5,7 @@ instance (created on demand). Each test gets a clean slate via TRUNCATE, and
 the app's DB dependency is overridden to use the test database.
 """
 
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 
 import pytest
 from fastapi.testclient import TestClient
@@ -16,7 +16,12 @@ from sqlalchemy.orm import Session, sessionmaker
 import app.models  # noqa: F401  — registers tables on Base.metadata
 from app.core.config import get_settings
 from app.core.database import Base, get_db
+from app.core.security import hash_token
 from app.main import app
+from app.models.product import Product
+from app.models.reseller import Reseller
+from app.schemas.product import AdminProductCreate
+from app.services.product_service import ProductService
 
 _TABLES = ("orders", "coupons", "resellers", "products")
 
@@ -54,12 +59,12 @@ def engine() -> Iterator[Engine]:
 
 
 @pytest.fixture()
-def session_factory(engine: Engine):
+def session_factory(engine: Engine) -> sessionmaker:
     return sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
 
 @pytest.fixture()
-def db_session(session_factory) -> Iterator[Session]:
+def db_session(session_factory: sessionmaker) -> Iterator[Session]:
     session = session_factory()
     session.execute(text("TRUNCATE " + ", ".join(_TABLES) + " RESTART IDENTITY CASCADE"))
     session.commit()
@@ -70,7 +75,7 @@ def db_session(session_factory) -> Iterator[Session]:
 
 
 @pytest.fixture()
-def client(session_factory, db_session: Session) -> Iterator[TestClient]:
+def client(session_factory: sessionmaker, db_session: Session) -> Iterator[TestClient]:
     def override_get_db() -> Iterator[Session]:
         db = session_factory()
         try:
@@ -82,3 +87,32 @@ def client(session_factory, db_session: Session) -> Iterator[TestClient]:
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()
+
+
+@pytest.fixture()
+def reseller_headers(db_session: Session) -> dict[str, str]:
+    """Insert an active reseller and return its Bearer auth header."""
+    token = "test-reseller-token"
+    db_session.add(Reseller(name="Test Reseller", token_hash=hash_token(token)))
+    db_session.commit()
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture()
+def make_coupon(db_session: Session) -> Callable[..., Product]:
+    """Factory: create a coupon product (defaults to min sell price 100.00)."""
+
+    def _make(**overrides) -> Product:
+        data = {
+            "name": "Amazon $100 Coupon",
+            "description": "Gift card",
+            "image_url": "https://example.com/img.png",
+            "cost_price": "80.00",
+            "margin_percentage": "25.00",
+            "value_type": "STRING",
+            "value": "ABCD-1234",
+        }
+        data.update(overrides)
+        return ProductService(db_session).create(AdminProductCreate(**data))
+
+    return _make
