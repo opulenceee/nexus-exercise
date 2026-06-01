@@ -36,8 +36,8 @@
       <label for="c-desc">Description</label>
       <input id="c-desc" placeholder="Gift card redeemable on Amazon" />
 
-      <label for="c-image">Image URL</label>
-      <input id="c-image" placeholder="https://…" />
+      <label for="c-image">Image URL <span style="color:#c00">*required</span></label>
+      <input id="c-image" placeholder="https://picsum.photos/400/200" />
 
       <div class="form-row">
         <div>
@@ -60,6 +60,8 @@
       <input id="c-value" placeholder="ABCD-1234 or https://…/qr.png" />
 
       <button class="btn btn-primary" onclick="createCoupon()">Create Coupon</button>
+      <div id="create-error" style="display:none;margin-top:.75rem" class="alert alert-error"></div>
+      <div id="create-success" style="display:none;margin-top:.75rem" class="alert alert-success"></div>
     </div>
 
     <!-- Products table -->
@@ -129,17 +131,57 @@
       }
     }
 
+    function showCreateError(msg) {
+      const el = document.getElementById('create-error');
+      el.textContent = msg;
+      el.style.display = 'block';
+      document.getElementById('create-success').style.display = 'none';
+      // Also scroll the error into view so it's always visible.
+      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function showCreateSuccess(msg) {
+      const el = document.getElementById('create-success');
+      el.textContent = msg;
+      el.style.display = 'block';
+      document.getElementById('create-error').style.display = 'none';
+      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
     async function createCoupon() {
-      if (!adminToken) { showFlash('Set a token first.'); return; }
-      const payload = {
-        name: document.getElementById('c-name').value.trim(),
-        description: document.getElementById('c-desc').value.trim(),
-        image_url: document.getElementById('c-image').value.trim(),
-        cost_price: document.getElementById('c-cost').value,
-        margin_percentage: document.getElementById('c-margin').value,
-        value_type: document.getElementById('c-vtype').value,
-        value: document.getElementById('c-value').value.trim(),
+      // Hide previous inline messages.
+      document.getElementById('create-error').style.display = 'none';
+      document.getElementById('create-success').style.display = 'none';
+
+      if (!adminToken) {
+        showCreateError('You must set a token first — scroll up and click "Set Token & Load".');
+        return;
+      }
+
+      const fields = {
+        name:              document.getElementById('c-name').value.trim(),
+        description:       document.getElementById('c-desc').value.trim(),
+        image_url:         document.getElementById('c-image').value.trim(),
+        cost_price:        document.getElementById('c-cost').value.trim(),
+        margin_percentage: document.getElementById('c-margin').value.trim(),
+        value:             document.getElementById('c-value').value.trim(),
       };
+
+      // Client-side required-field check so the user sees a clear message
+      // right next to the button, not a cryptic 422 from the server.
+      const missing = Object.entries(fields)
+        .filter(([, v]) => v === '')
+        .map(([k]) => k.replace(/_/g, ' '));
+      if (missing.length) {
+        showCreateError(`Missing required fields: ${missing.join(', ')}`);
+        return;
+      }
+
+      const payload = {
+        ...fields,
+        value_type: document.getElementById('c-vtype').value,
+      };
+
       try {
         const res = await fetch('/api/admin/products', {
           method: 'POST',
@@ -148,17 +190,20 @@
         });
         const body = await res.json();
         if (!res.ok) {
-          showFlash(`Error: ${body.message || body.error_code}`);
+          // Show the server's exact validation message right next to the button.
+          showCreateError(`Server error: ${body.message || body.error_code}`);
           return;
         }
-        showFlash(`Coupon created! Min sell price: $${Number(body.minimum_sell_price).toFixed(2)}`, 'success');
-        // Clear form.
+        showCreateSuccess(
+          `✓ Coupon created! Min sell price: $${Number(body.minimum_sell_price).toFixed(2)}`
+        );
+        // Clear form fields.
         ['c-name','c-desc','c-image','c-cost','c-margin','c-value'].forEach(id => {
           document.getElementById(id).value = '';
         });
         loadProducts();
       } catch {
-        showFlash('Network error.');
+        showCreateError('Network error — is the server running?');
       }
     }
 
