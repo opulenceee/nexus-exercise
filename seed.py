@@ -13,9 +13,9 @@ from app.core.config import get_settings
 from app.core.database import SessionLocal
 from app.core.security import hash_token
 from app.models.coupon import Coupon
+from app.models.enums import CouponValueType, ProductType
 from app.models.product import Product
 from app.models.reseller import Reseller
-from app.models.enums import CouponValueType, ProductType
 from app.services.pricing import compute_minimum_sell_price
 
 
@@ -29,7 +29,7 @@ def seed() -> None:
     try:
         token_hash = hash_token(settings.seed_reseller_token)
 
-        # --- Reseller ---
+        # --- Reseller (idempotent: skip if hash already exists) ---
         existing = db.query(Reseller).filter_by(token_hash=token_hash).first()
         if existing:
             print("SEED: demo reseller already exists, skipping.")
@@ -40,7 +40,7 @@ def seed() -> None:
 
         # --- Sample coupons (only if no products exist yet) ---
         if db.query(Product).count() == 0:
-            _sample_coupons(db)
+            _create_sample_coupons(db)
             print("SEED: created sample coupons.")
         else:
             print("SEED: products already exist, skipping sample coupons.")
@@ -55,7 +55,7 @@ def seed() -> None:
         db.close()
 
 
-def _sample_coupons(db) -> None:
+def _create_sample_coupons(db) -> None:
     samples = [
         dict(
             name="Amazon $100 Gift Card",
@@ -87,19 +87,9 @@ def _sample_coupons(db) -> None:
     ]
 
     for s in samples:
-        cost = s.pop("cost_price")
-        margin = s.pop("margin_percentage")
+        cost = s["cost_price"]
+        margin = s["margin_percentage"]
         minimum = compute_minimum_sell_price(cost, margin)
-        coupon = Coupon(
-            cost_price=cost,
-            margin_percentage=margin,
-            minimum_sell_price=minimum,
-            **s,
-        )
-        product = Product(type=ProductType.COUPON, coupon=coupon, **{
-            k: v for k, v in s.items() if k in ("name", "description", "image_url")
-        })
-        # Reconstruct cleanly: Product takes base fields, Coupon takes the rest.
         product = Product(
             name=s["name"],
             description=s["description"],
