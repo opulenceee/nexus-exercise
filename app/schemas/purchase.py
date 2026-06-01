@@ -10,7 +10,7 @@ import uuid
 from decimal import Decimal
 from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
 from app.models.enums import CouponValueType
 
@@ -24,10 +24,14 @@ class ResellerPurchaseIn(BaseModel):
 
 
 class PurchaseOut(BaseModel):
-    """Returned only after a successful purchase — this is the one place the
-    coupon `value` is ever exposed."""
+    """Returned only after a successful purchase — the one place the coupon
+    `value` is ever exposed."""
 
     product_id: uuid.UUID
     final_price: Decimal
     value_type: CouponValueType
     value: str
+
+    @field_serializer("final_price")
+    def _serialize_final_price(self, value: Decimal) -> float:
+        return float(value)

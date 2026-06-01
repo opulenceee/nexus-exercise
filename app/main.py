@@ -1,23 +1,22 @@
-"""FastAPI application entrypoint.
-
-Routers, exception handlers, and the static frontend are mounted in later
-phases. For now this is just enough to prove the container boots and serves
-HTTP (with auto-generated Swagger docs at /docs).
+"""FastAPI application: wires routers, exception handlers, and (later) the
+static frontend.
 """
 
 from fastapi import FastAPI
 
+from app.api.admin import router as admin_router
 from app.core.config import get_settings
+from app.core.errors import register_exception_handlers
 
 settings = get_settings()
 
-app = FastAPI(
-    title=settings.app_name,
-    version="0.1.0",
-)
+app = FastAPI(title=settings.app_name, version="0.1.0")
+
+register_exception_handlers(app)
+app.include_router(admin_router)
 
 
 @app.get("/health", tags=["meta"])
 def health() -> dict[str, str]:
-    """Liveness probe used by humans and (optionally) orchestrators."""
+    """Liveness probe."""
     return {"status": "ok"}
