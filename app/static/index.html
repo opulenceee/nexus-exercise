@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nexus Coupon Marketplace</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <header>
+    <h1>🎟 Nexus Marketplace</h1>
+    <nav>
+      <a href="/" class="active">Shop</a> &nbsp;|&nbsp;
+      <a href="/admin">Admin</a>
+    </nav>
+  </header>
+
+  <main>
+    <h2>Available Coupons</h2>
+    <div id="flash"></div>
+    <div id="grid" class="coupon-grid">
+      <p>Loading…</p>
+    </div>
+  </main>
+
+  <!-- Purchase success modal -->
+  <div id="modal" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;">
+    <div class="card" style="max-width:420px;width:100%;margin:0 1rem;">
+      <h3 style="margin-bottom:1rem">🎉 Purchase Successful!</h3>
+      <p style="margin-bottom:.75rem;font-size:.9rem;">Your redeemable code:</p>
+      <div id="modal-value" class="value-box" style="margin-bottom:1rem">—</div>
+      <button class="btn btn-primary btn-full" onclick="closeModal()">Close</button>
+    </div>
+  </div>
+
+  <script>
+    const flash = document.getElementById('flash');
+
+    function showFlash(msg, type='error') {
+      flash.innerHTML = `<div class="alert alert-${type}">${msg}</div>`;
+      setTimeout(() => flash.innerHTML = '', 5000);
+    }
+
+    function closeModal() {
+      document.getElementById('modal').classList.add('hidden');
+      loadProducts(); // refresh grid after purchase
+    }
+
+    async function loadProducts() {
+      const grid = document.getElementById('grid');
+      try {
+        const res = await fetch('/api/storefront/products');
+        const products = await res.json();
+        if (products.length === 0) {
+          grid.innerHTML = '<p style="color:#666">No coupons available right now.</p>';
+          return;
+        }
+        grid.innerHTML = products.map(p => `
+          <div class="coupon-card">
+            <img src="${escHtml(p.image_url)}" alt="${escHtml(p.name)}"
+                 onerror="this.src='/static/placeholder.svg'">
+            <div class="info">
+              <div class="name">${escHtml(p.name)}</div>
+              <div class="desc">${escHtml(p.description)}</div>
+              <div class="price">$${p.price.toFixed(2)}</div>
+            </div>
+            <div class="actions">
+              <button class="btn btn-primary btn-full" onclick="buy('${p.id}')">
+                Buy for $${p.price.toFixed(2)}
+              </button>
+            </div>
+          </div>
+        `).join('');
+      } catch {
+        grid.innerHTML = '<p class="alert alert-error">Failed to load products.</p>';
+      }
+    }
+
+    async function buy(productId) {
+      try {
+        const res = await fetch(`/api/storefront/products/${productId}/purchase`, {
+          method: 'POST',
+        });
+        const body = await res.json();
+        if (!res.ok) {
+          showFlash(`Error: ${body.message || body.error_code}`);
+          return;
+        }
+        // Show value in modal — it's only returned after a successful purchase.
+        document.getElementById('modal-value').textContent =
+          body.value_type === 'IMAGE'
+            ? `[Image URL]: ${body.value}`
+            : body.value;
+        document.getElementById('modal').classList.remove('hidden');
+      } catch {
+        showFlash('Network error. Please try again.');
+      }
+    }
+
+    function escHtml(str) {
+      return String(str).replace(/[&<>"']/g, c =>
+        ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+
+    loadProducts();
+  </script>
+</body>
+</html>
