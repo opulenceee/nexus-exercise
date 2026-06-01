@@ -25,6 +25,7 @@
       <label for="token">Admin Bearer Token</label>
       <input type="password" id="token" placeholder="Enter admin token…" />
       <button class="btn btn-primary" onclick="setToken()">Set Token & Load</button>
+      <div id="token-status" style="display:none;margin-top:.75rem"></div>
     </div>
 
     <!-- Create coupon form -->
@@ -92,9 +93,20 @@
       setTimeout(() => flash.innerHTML = '', 6000);
     }
 
+    function setTokenStatus(msg, type) {
+      const el = document.getElementById('token-status');
+      el.className = `alert alert-${type}`;
+      el.textContent = msg;
+      el.style.display = 'block';
+    }
+
     function setToken() {
       adminToken = document.getElementById('token').value.trim();
-      if (!adminToken) { showFlash('Please enter a token.'); return; }
+      if (!adminToken) {
+        setTokenStatus('Please enter a token.', 'error');
+        return;
+      }
+      setTokenStatus('Verifying…', 'info');
       loadProducts();
     }
 
@@ -107,7 +119,12 @@
       const tbody = document.getElementById('products-tbody');
       try {
         const res = await fetch('/api/admin/products', { headers: authHeaders() });
-        if (res.status === 401) { showFlash('Invalid token.'); return; }
+        if (res.status === 401) {
+          setTokenStatus('❌ Invalid token — check your token and try again.', 'error');
+          adminToken = '';
+          return;
+        }
+        setTokenStatus('✓ Token accepted — you are authenticated as admin.', 'success');
         const products = await res.json();
         if (products.length === 0) {
           tbody.innerHTML = '<tr><td colspan="7" style="color:#666">No products yet.</td></tr>';
