@@ -23,8 +23,9 @@
     </div>
   </main>
 
-  <!-- Purchase success modal -->
-  <div id="modal" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;">
+  <!-- Purchase success modal: display is controlled entirely by JS (no inline display:flex,
+       which would override the .hidden class and show the modal on page load) -->
+  <div id="modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);align-items:center;justify-content:center;">
     <div class="card" style="max-width:420px;width:100%;margin:0 1rem;">
       <h3 style="margin-bottom:1rem">🎉 Purchase Successful!</h3>
       <p style="margin-bottom:.75rem;font-size:.9rem;">Your redeemable code:</p>
@@ -42,7 +43,7 @@
     }
 
     function closeModal() {
-      document.getElementById('modal').classList.add('hidden');
+      document.getElementById('modal').style.display = 'none';
       loadProducts(); // refresh grid after purchase
     }
 
@@ -91,7 +92,7 @@
           body.value_type === 'IMAGE'
             ? `[Image URL]: ${body.value}`
             : body.value;
-        document.getElementById('modal').classList.remove('hidden');
+        document.getElementById('modal').style.display = 'flex';
       } catch {
         showFlash('Network error. Please try again.');
       }
