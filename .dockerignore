@@ -1,0 +1,14 @@
+.git
+.gitignore
+.venv
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.DS_Store
+# Never bake real secrets into the image:
+.env
+.env.*
+!.env.example
